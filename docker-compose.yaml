@@ -1,0 +1,65 @@
+services:
+  php-fpm:
+    container_name: php
+    build:
+      context: ./docker/php-fpm
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - mysql
+      - redis
+
+  nginx:
+    container_name: nginx-1
+    build:
+      context: ./docker/nginx
+    volumes:
+      - ./:/var/www/html
+    ports:
+      - "80:80"
+    depends_on:
+      - php-fpm
+
+  mysql:
+    container_name: mysql
+    image: mysql:8.3
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: "root"
+    volumes:
+      - ./db/mysql:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  mysql-test:
+    container_name: mysql-test
+    image: mysql:8.3
+    restart: always
+    environment:
+      MYSQL_DATABASE: test_db
+      MYSQL_USER: test_user
+      MYSQL_PASSWORD: test_password
+      MYSQL_ROOT_PASSWORD: test_root_password
+    volumes:
+      - ./db/mysql-test:/var/lib/mysql
+    ports:
+      - "3307:3306"
+
+  redis:
+    container_name: redis
+    image: redis:alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    command: [ "redis-server", "--appendonly", "yes" ]
+
+  redis-test:
+    image: redis:alpine
+    container_name: redis-test
+    ports:
+      - "6380:6379"
