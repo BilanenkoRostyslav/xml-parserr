@@ -1,4 +1,4 @@
-## Getting Started
+# Getting Started
 
 To get started with this project, follow these steps:
 
@@ -7,6 +7,12 @@ To get started with this project, follow these steps:
 3. Up containers:  ```docker-compose up```
 4. Install project dependencies using Compose: ```composer install```
 5. Configure the `.env`
-6. Migrate: ```docker-exec php php artisan migrate```
-7. Go to ```localhost:80```
+6. Migrate: ```docker exec -it  php php artisan migrate:fresh```
+7. Go to ```http://localhost/docs/api```
+
+## Using xml parser command
+
+1. Use: ```docker exec -it  php php artisan xml:parse {"your path to xml"}```
+
+
 

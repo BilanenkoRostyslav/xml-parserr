@@ -15,7 +15,7 @@ return new class extends Migration {
         description TEXT NOT NULL,
         vendor VARCHAR(255),
         vendor_code VARCHAR(255),
-        barcode BIGINT NOT NULL)";
+        barcode VARCHAR(255) NOT NULL)";
         DB::unprepared($query);
     }
 
