@@ -16,7 +16,8 @@ class XmlParseCommand extends Command
     protected $description = 'Parsing XML';
 
     private const int SIZE = 500;
-
+    private array $filtersMap = [];
+    private array $filterValuesMap = [];
 
     public function __construct(
         private readonly MainRepositoryInterface $mainRepository,
@@ -126,33 +127,22 @@ class XmlParseCommand extends Command
         ?int   $filterId = null
     ): int
     {
-        $mapProperty = $table === 'filters' ? 'filtersMap' : 'filterValuesMap';
+        $mapProperty = $this->getMapProperty($table);
 
-        if (!isset($this->{$mapProperty}[$cacheKey])) {
-            $entityId = $table === 'filters'
-                ? $this->mainRepository->{$repositoryMethod}($cacheKey)
-                : $this->mainRepository->{$repositoryMethod}($filterId, $value);
-
-            if (!$entityId) {
-                $data = $table === 'filters'
-                    ? [['name' => $value, 'slug' => $cacheKey]]
-                    : [['value' => $value, 'filter_id' => $filterId]];
-
-                $columns = $table === 'filters'
-                    ? ['name', 'slug']
-                    : ['value', 'filter_id'];
-
-                $this->mainRepository->insertMany($data, $table, $columns);
-
-                $entityId = $table === 'filters'
-                    ? $this->mainRepository->{$repositoryMethod}($cacheKey)
-                    : $this->mainRepository->{$repositoryMethod}($filterId, $value);
-            }
-
-            $this->{$mapProperty}[$cacheKey] = $entityId;
+        if (isset($this->{$mapProperty}[$cacheKey])) {
+            return $this->{$mapProperty}[$cacheKey];
         }
 
-        return $this->{$mapProperty}[$cacheKey];
+        $entityId = $this->findEntityId($table, $repositoryMethod, $cacheKey, $value, $filterId);
+
+        if (!$entityId) {
+            $this->insertEntity($table, $cacheKey, $value, $filterId);
+            $entityId = $this->findEntityId($table, $repositoryMethod, $cacheKey, $value, $filterId);
+        }
+
+        $this->{$mapProperty}[$cacheKey] = $entityId;
+
+        return $entityId;
     }
 
 
@@ -180,5 +170,30 @@ class XmlParseCommand extends Command
         DB::table('filter_values')->truncate();
         DB::table('filters')->truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1');
+    }
+
+    private function getMapProperty(string $table): string
+    {
+        return $table === 'filters' ? 'filtersMap' : 'filterValuesMap';
+    }
+
+    private function findEntityId(string $table, string $repositoryMethod, string $cacheKey, string $value, ?int $filterId): ?int
+    {
+        return $table === 'filters'
+            ? $this->mainRepository->{$repositoryMethod}($cacheKey)
+            : $this->mainRepository->{$repositoryMethod}($filterId, $value);
+    }
+
+    private function insertEntity(string $table, string $cacheKey, string $value, ?int $filterId): void
+    {
+        if ($table === 'filters') {
+            $data = [['name' => $value, 'slug' => $cacheKey]];
+            $columns = ['name', 'slug'];
+        } else {
+            $data = [['value' => $value, 'filter_id' => $filterId]];
+            $columns = ['value', 'filter_id'];
+        }
+
+        $this->mainRepository->insertMany($data, $table, $columns);
     }
 }
