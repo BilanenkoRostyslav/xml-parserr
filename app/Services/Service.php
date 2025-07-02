@@ -44,6 +44,7 @@ class Service
         $offers = $offers->map(function ($offer) {
             return new OfferDTO($offer['id'], $offer['name'], $offer['price'], $offer['description']);
         });
+
         $total = count($ids);
         $lastPage = ceil($total / $getOffersDTO->getLimit());
         $meta = new MetaDTO($getOffersDTO->getPage(), $lastPage, $total, $getOffersDTO->getLimit());

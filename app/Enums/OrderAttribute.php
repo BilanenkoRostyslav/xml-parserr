@@ -10,4 +10,5 @@ enum OrderAttribute: string
 
     case ID = 'id';
     case NAME = 'name';
+    case PRICE = 'price';
 }

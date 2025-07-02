@@ -9,7 +9,7 @@ class OfferDTO extends BaseDTO
     public function __construct(
         private int    $id,
         private string $name,
-        private string $price,
+        private int    $price,
         private string $description,
 
     )
