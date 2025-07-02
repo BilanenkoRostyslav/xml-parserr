@@ -7,9 +7,13 @@ use PDO;
 
 abstract class BaseRepository
 {
-    protected PDO $pdo;
-    public function __construct()
+    protected ?PDO $pdo = null;
+
+    protected function getPdo(): PDO
     {
-        $this->pdo = DB::getPdo();
+        if ($this->pdo === null) {
+            $this->pdo = DB::getPdo();
+        }
+        return $this->pdo;
     }
 }

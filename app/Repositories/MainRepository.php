@@ -22,14 +22,15 @@ class MainRepository extends BaseRepository implements MainRepositoryInterface
             $inPart .= "IN {$ids}";
         }
         $query = "SELECT id, name, price, description FROM offers WHERE id {$inPart} ORDER BY {$orderAttribute} {$orderBy} LIMIT {$limit} OFFSET {$offset} ";
-        $queryResult = $this->pdo->query($query)->fetchAll(\PDO::FETCH_ASSOC);
+        $queryResult = $this->getPdo()->query($query)->fetchAll(\PDO::FETCH_ASSOC);
         return new Collection($queryResult);
     }
+
 
     public function getFilters(): Collection
     {
         $query = "SELECT filters.name, filters.slug, filter_values.value FROM filters INNER JOIN filter_values ON filters.id = filter_values.filter_id ";
-        $queryResult = $this->pdo->query($query)->fetchAll(\PDO::FETCH_ASSOC);
+        $queryResult = $this->getPdo()->query($query)->fetchAll(\PDO::FETCH_ASSOC);
         return new Collection($queryResult);
     }
 
