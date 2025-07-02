@@ -17,4 +17,6 @@ interface MainRepositoryInterface
     public function getFilterValueId(int $filterId, string $paramValue);
 
     public function filterIdBySlug(string $slug);
+
+    public function upsert(array $items, string $table, array $columns);
 }

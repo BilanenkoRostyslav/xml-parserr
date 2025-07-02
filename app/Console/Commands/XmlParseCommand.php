@@ -24,8 +24,6 @@ class XmlParseCommand extends Command
     )
     {
         parent::__construct();
-        Redis::flushAll();
-        $this->cleanDB();
     }
 
     public function handle(): int
@@ -149,7 +147,7 @@ class XmlParseCommand extends Command
     private function save(array $offers, array $redisSets): void
     {
         if (!empty($offers)) {
-            $this->mainRepository->insertMany($offers, 'offers', [
+            $this->mainRepository->upsert($offers, 'offers', [
                 'id', 'available', 'name', 'price', 'description', 'vendor', 'vendor_code', 'barcode'
             ]);
         }
@@ -161,15 +159,6 @@ class XmlParseCommand extends Command
                 }
             });
         }
-    }
-
-    private function cleanDB(): void
-    {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
-        DB::table('offers')->truncate();
-        DB::table('filter_values')->truncate();
-        DB::table('filters')->truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
     }
 
     private function getMapProperty(string $table): string
@@ -194,6 +183,6 @@ class XmlParseCommand extends Command
             $columns = ['value', 'filter_id'];
         }
 
-        $this->mainRepository->insertMany($data, $table, $columns);
+        $this->mainRepository->upsert($data, $table, $columns);
     }
 }

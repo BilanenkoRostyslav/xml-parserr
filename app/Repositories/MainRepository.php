@@ -73,4 +73,29 @@ class MainRepository extends BaseRepository implements MainRepositoryInterface
         $result = DB::selectOne($sql, [$slug, 1]);
         return $result?->id;
     }
+
+    public function upsert(array $items, string $table, array $columns)
+    {
+        if (empty($items)) {
+            return;
+        }
+
+        $rowPlaceholder = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
+        $placeholders = implode(', ', array_fill(0, count($items), $rowPlaceholder));
+
+        $bindings = [];
+        foreach ($items as $item) {
+            foreach ($columns as $column) {
+                $bindings[] = $item[$column] ?? null;
+            }
+        }
+
+        $updates = implode(', ', array_map(fn($col) => "`$col` = VALUES(`$col`)", $columns));
+
+        $sql = "INSERT INTO `$table` (" . implode(', ', array_map(fn($col) => "`$col`", $columns)) . ")
+            VALUES $placeholders
+            ON DUPLICATE KEY UPDATE $updates";
+
+        DB::statement($sql, $bindings);
+    }
 }

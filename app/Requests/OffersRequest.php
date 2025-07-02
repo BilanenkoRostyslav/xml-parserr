@@ -28,7 +28,7 @@ class OffersRequest extends BaseApiRequest
             'sortAttribute' => ['nullable', 'string', Rule::in(OrderAttribute::values())],
             'sortBy' => ['nullable', 'string', Rule::in(Order::values())],
             'filters' => ['nullable', 'array',],
-            'filters.*' => ['required', 'string'],
+            'filters.*' => ['required', 'array'],
         ];
     }
 }

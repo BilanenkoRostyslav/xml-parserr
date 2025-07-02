@@ -17,7 +17,7 @@ class FilterRequest extends BaseApiRequest
     {
         return [
             'filters' => ['nullable', 'array',],
-            'filters.*' => ['required', 'string'],
+            'filters.*' => ['required', 'array'],
         ];
     }
 }

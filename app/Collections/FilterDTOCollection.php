@@ -15,11 +15,15 @@ class FilterDTOCollection extends Collection
         return $this->items;
     }
 
-    public function getFilterRedisKeys(): array
+    public function getActiveFilterRedisKeys(): array
     {
-        return array_map(function (FilterDTO $filter) {
-            return "filter:{$filter->getSlug()}:{$filter->getValue()}";
-        }, $this->all());
+        return $this->groupBy(function (FilterDTO $item) {
+            return $item->getSlug();
+        })->map(function (FilterDTOCollection $collection) {
+            return $collection->map(function (FilterDTO $filter) {
+                return "filter:{$filter->getSlug()}:{$filter->getValue()}";
+            });
+        })->toArray();
     }
 
     public function getFilterValues(): array

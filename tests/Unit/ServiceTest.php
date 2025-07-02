@@ -6,7 +6,7 @@ use App\Collections\FilterDTOCollection;
 use App\Collections\FilterResponseDTOCollection;
 use App\DTO\FilterDTO;
 use App\DTO\FilterResponseDTO;
-use App\DTO\FilterValuesResponseDTO;
+use App\DTO\FilterValueResponseDTO;
 use App\DTO\GetOffersDTO;
 use App\Enums\Order;
 use App\Enums\OrderAttribute;
@@ -33,7 +33,7 @@ class ServiceTest extends TestCase
     {
         $filterDTOCollectionMock = $this->createMock(FilterDtoCollection::class);
         $filterDTOCollectionMock->expects($this->once())
-            ->method('getFilterRedisKeys')
+            ->method('getActiveFilterRedisKeys')
             ->willReturn([]);
 
         $getOffersDTOMock = $this->createMock(GetOffersDTO::class);
@@ -90,7 +90,7 @@ class ServiceTest extends TestCase
             );
 
         $filterDtoCollectionMock = $this->createMock(FilterDTOCollection::class);
-        $filterDtoCollectionMock->method('getFilterRedisKeys')
+        $filterDtoCollectionMock->method('getActiveFilterRedisKeys')
             ->willReturn(['filter:brand:Nike']);
         $filterDtoCollectionMock->method('getFilterValues')
             ->willReturn(['Nike']);
@@ -108,7 +108,7 @@ class ServiceTest extends TestCase
         $this->assertNotEmpty($values);
 
         $firstValue = $values->all()[0];
-        $this->assertInstanceOf(FilterValuesResponseDTO::class, $firstValue);
+        $this->assertInstanceOf(FilterValueResponseDTO::class, $firstValue);
         $this->assertEquals('Nike', $firstValue->getValue());
         $this->assertEquals(3, $firstValue->getCount());
         $this->assertTrue($firstValue->getActive());

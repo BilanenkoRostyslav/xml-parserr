@@ -4,7 +4,7 @@ namespace App\DTO;
 
 use App\DTO\Abstracts\BaseDTO;
 
-class FilterValuesResponseDTO extends BaseDTO
+class FilterValueResponseDTO extends BaseDTO
 {
     public function __construct(
         private string $value,
