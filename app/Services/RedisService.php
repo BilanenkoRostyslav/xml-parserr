@@ -41,4 +41,9 @@ class RedisService
     {
         return RedisFacade::exists($key);
     }
+
+    public function pipeline(callable $callback)
+    {
+        return RedisFacade::pipeline($callback);
+    }
 }

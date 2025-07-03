@@ -6,6 +6,7 @@ use App\Collections\FilterDTOCollection;
 use App\Collections\FilterResponseDTOCollection;
 use App\Collections\FilterValuesResponseDTOCollection;
 use App\Collections\OfferDTOCollection;
+use App\DTO\BuildFiltersWithoutSlugDTO;
 use App\DTO\FilterDTO;
 use App\DTO\FilterResponseDTO;
 use App\DTO\FilterValueResponseDTO;
@@ -16,6 +17,7 @@ use App\DTO\OfferResponseDTO;
 use App\Repositories\Abstracts\MainRepositoryInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 
 class Service
 {
@@ -82,75 +84,117 @@ class Service
 
     private function mapFilters(Collection $filtersData, array $activeFilters): array
     {
-        return $filtersData->map(function ($filter) use ($activeFilters) {
+        return $filtersData->map(function ($filter) use ($activeFilters, &$total) {
             $slug = $filter[0]['slug'];
             $name = $filter[0]['name'];
-
             $valueResponseDTO = $this->mapFilterValues($filter, $activeFilters, $slug);
-
             return new FilterResponseDTO($name, $slug, new FilterValuesResponseDTOCollection($valueResponseDTO));
         })->values()->all();
     }
 
     private function mapFilterValues(Collection $filterValues, array $activeFilters, string $slug): array
     {
-        return $filterValues->map(function ($item) use ($activeFilters, $slug) {
-            [$count, $isActive] = $this->calculateCountAndActive($item, $activeFilters, $slug);
-
-            return new FilterValueResponseDTO($item['value'], $count, $isActive);
-        })->all();
-    }
-
-    private function calculateCountAndActive(array $item, array $activeFilters, string $slug): array
-    {
-        $filterKey = "filter:{$item['slug']}:{$item['value']}";
         $activeFiltersKey = Config::get("redis.active_filters_key");
         $unionPrefixBase = Config::get("redis.union_prefix");
-        $expireTTL = Config::get("redis.expire_ttl");
 
-        if (empty($activeFilters)) {
-            return [$this->redis->scard($filterKey), false];
+        $commands = [];
+        $dto = new BuildFiltersWithoutSlugDTO($activeFilters, $slug, $activeFiltersKey, $unionPrefixBase);
+
+        $activeFiltersWithoutSlug = $this->buildActiveFiltersWithoutSlug($commands, $dto);
+        foreach ($filterValues as $i => $item) {
+            $itemCommands = $this->buildFilterValueCommands(
+                $item, $i, $dto, $activeFiltersWithoutSlug
+            );
+            $commands = array_merge($commands, $itemCommands);
         }
 
-        $key = $filterKey;
-
-        if (array_key_exists($slug, $activeFilters)) {
-            $isActive = in_array($key, $activeFilters[$slug]);
-            $unionPrefix = "$unionPrefixBase:$slug";
-
-            if (!$isActive) {
-                $activeFiltersWithoutSlug = "{$activeFiltersKey}:without:{$slug}";
-
-                $activeUnionKeysWithoutCurrent = [];
-                foreach (array_keys($activeFilters) as $activeFilter) {
-                    if ($activeFilter !== $slug) {
-                        $activeUnionKeysWithoutCurrent[] = "$unionPrefixBase:$activeFilter";
-                    }
-                }
-
-                if (count($activeUnionKeysWithoutCurrent) > 0) {
-                    $this->redis->sinterStore($activeFiltersWithoutSlug, ...$activeUnionKeysWithoutCurrent);
-                    $this->redis->setExpireValue($activeFiltersWithoutSlug, $expireTTL);
-
-                    $this->redis->createUnion($unionPrefix, $key, ...$activeFilters[$slug]);
-                    $this->redis->setExpireValue($unionPrefix, $expireTTL);
-
-                    $count = $this->redis->sinterCard([$activeFiltersWithoutSlug, $unionPrefix]);
-                } else {
-                    $this->redis->createUnion($unionPrefix, $key, ...$activeFilters[$slug]);
-                    $this->redis->setExpireValue($unionPrefix, $expireTTL);
-
-                    $count = $this->redis->scard($unionPrefix);
-                }
-            } else {
-                $count = $this->redis->scard($activeFiltersKey);
+        $rawResults = $this->redis->pipeline(function ($pipe) use ($commands) {
+            foreach ($commands as $cmd) {
+                $method = array_shift($cmd['cmd']);
+                $pipe->$method(...$cmd['cmd']);
             }
-        } else {
-            $isActive = false;
-            $count = $this->redis->sinterCard([$activeFiltersKey, $key]);
-        }
+        });
 
-        return [$count, $isActive];
+        return $this->parsePipelineResults($commands, $filterValues, $rawResults);
     }
 
+    private function buildActiveFiltersWithoutSlug(array &$commands, BuildFiltersWithoutSlugDTO $dto): ?string
+    {
+        $activeFiltersWithoutSlug = null;
+        $activeUnionKeysWithoutCurrent = [];
+        $slug = $dto->getSlug();
+        $activeFilters = $dto->getActiveFilters();
+        $unionPrefixBase = $dto->getUnionPrefixBase();
+        $activeFiltersKey = $dto->getActiveFiltersKey();
+        $expireTTL = Config::get("redis.expire_ttl");
+
+        if (array_key_exists($slug, $activeFilters)) {
+            foreach (array_keys($activeFilters) as $activeFilter) {
+                if ($activeFilter !== $slug) {
+                    $activeUnionKeysWithoutCurrent[] = "$unionPrefixBase:$activeFilter";
+                }
+            }
+            if (count($activeUnionKeysWithoutCurrent) > 0) {
+                $activeFiltersWithoutSlug = "{$activeFiltersKey}:without:{$slug}";
+                $commands[] = ['cmd' => ['sinterstore', $activeFiltersWithoutSlug, ...$activeUnionKeysWithoutCurrent], 'need' => false];
+                $commands[] = ['cmd' => ['expire', $activeFiltersWithoutSlug, $expireTTL], 'need' => false];
+            }
+        }
+
+        return $activeFiltersWithoutSlug;
+    }
+
+    private function buildFilterValueCommands(array $item, int $index, BuildFiltersWithoutSlugDTO $dto, ?string $activeFiltersWithoutSlug): array
+    {
+        $commands = [];
+        $filterKey = "filter:{$item['slug']}:{$item['value']}";
+        $expireTTL = Config::get("redis.expire_ttl");
+        $slug = $dto->getSlug();
+        $unionPrefixBase = $dto->getUnionPrefixBase();
+        $activeFiltersKey = $dto->getActiveFiltersKey();
+        $activeFilters = $dto->getActiveFilters();
+
+        if (empty($activeFilters)) {
+            $commands[] = ['cmd' => ['scard', $filterKey], 'need' => true, 'index' => $index, 'isActive' => false];
+        } else {
+            if (array_key_exists($slug, $activeFilters)) {
+                $isActive = in_array($filterKey, $activeFilters[$slug]);
+                $unionKey = "$unionPrefixBase:$slug:{$item['value']}";
+
+                if (!$isActive) {
+                    $commands[] = ['cmd' => ['sunionstore', $unionKey, $filterKey, ...$activeFilters[$slug]], 'need' => false];
+                    $commands[] = ['cmd' => ['expire', $unionKey, $expireTTL], 'need' => false];
+
+                    if ($activeFiltersWithoutSlug) {
+                        $commands[] = ['cmd' => ['sintercard', [$activeFiltersWithoutSlug, $unionKey]], 'need' => true, 'index' => $index, 'isActive' => false];
+                    } else {
+                        $commands[] = ['cmd' => ['scard', $unionKey], 'need' => true, 'index' => $index, 'isActive' => false];
+                    }
+                } else {
+                    $commands[] = ['cmd' => ['scard', $activeFiltersKey], 'need' => true, 'index' => $index, 'isActive' => true];
+                }
+            } else {
+                $commands[] = ['cmd' => ['sintercard', [$activeFiltersKey, $filterKey]], 'need' => true, 'index' => $index, 'isActive' => false];
+            }
+        }
+
+        return $commands;
+    }
+
+    private function parsePipelineResults(array $commands, Collection $filterValues, array $rawResults): array
+    {
+        $final = [];
+        foreach ($commands as $idx => $cmd) {
+            if (!empty($cmd['need'])) {
+                $index = $cmd['index'];
+                $item = $filterValues[$index];
+                $count = $rawResults[$idx];
+                $isActive = $cmd['isActive'] ?? false;
+
+                $final[] = new FilterValueResponseDTO($item['value'], $count, $isActive);
+            }
+        }
+
+        return $final;
+    }
 }

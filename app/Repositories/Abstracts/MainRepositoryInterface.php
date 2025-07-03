@@ -12,7 +12,6 @@ interface MainRepositoryInterface
 
     public function getFilters(): Collection;
 
-    public function insertMany(array $items, string $table, array $columns);
 
     public function getFilterValueId(int $filterId, string $paramValue);
 

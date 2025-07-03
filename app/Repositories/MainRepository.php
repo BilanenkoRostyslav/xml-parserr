@@ -34,31 +34,6 @@ class MainRepository extends BaseRepository implements MainRepositoryInterface
         return new Collection($queryResult);
     }
 
-    public function insertMany(array $items, string $table, array $columns): void
-    {
-        if (empty($items)) {
-            return;
-        }
-
-        $rowPlaceholder = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
-        $placeholders = implode(', ', array_fill(0, count($items), $rowPlaceholder));
-
-        $bindings = [];
-        foreach ($items as $item) {
-            foreach ($columns as $column) {
-                $bindings[] = $item[$column] ?? null;
-            }
-        }
-
-        $updates = implode(', ', array_map(fn($col) => "$col = VALUES($col)", $columns));
-
-        $sql = "INSERT INTO `$table` (" . implode(', ', $columns) . ")
-            VALUES $placeholders
-            ON DUPLICATE KEY UPDATE $updates";
-
-        DB::statement($sql, $bindings);
-    }
-
     public function getFilterValueId(int $filterId, string $paramValue)
     {
         $sql = "SELECT id FROM filter_values WHERE value = ? AND filter_id = ? LIMIT 1";
@@ -75,7 +50,7 @@ class MainRepository extends BaseRepository implements MainRepositoryInterface
         return $result?->id;
     }
 
-    public function upsert(array $items, string $table, array $columns)
+    public function upsert(array $items, string $table, array $columns): void
     {
         if (empty($items)) {
             return;
